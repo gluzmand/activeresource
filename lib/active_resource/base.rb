@@ -956,14 +956,17 @@ module ActiveResource
           begin
             case from = options[:from]
             when Symbol
-              instantiate_collection(get(from, options[:params]), options[:params])
+              response = get(from, options[:params])
+              instantiate_collection(response, options[:params], {}, response)
             when String
               path = "#{from}#{query_string(options[:params])}"
-              instantiate_collection(format.decode(connection.get(path, headers).body) || [], options[:params])
+              response = connection.get(path, headers)
+              instantiate_collection(format.decode(response.body) || [], options[:params], {}, response)
             else
               prefix_options, query_options = split_options(options[:params])
               path = collection_path(prefix_options, query_options)
-              instantiate_collection( (format.decode(connection.get(path, headers).body) || []), query_options, prefix_options )
+              response = connection.get(path, headers)
+              instantiate_collection( (format.decode(response.body) || []), query_options, prefix_options, response )
             end
           rescue ActiveResource::ResourceNotFound
             # Swallowing ResourceNotFound exceptions and return nil - as per
@@ -990,10 +993,11 @@ module ActiveResource
           instantiate_record(format.decode(connection.get(path, headers).body), prefix_options)
         end
 
-        def instantiate_collection(collection, original_params = {}, prefix_options = {})
+        def instantiate_collection(collection, original_params = {}, prefix_options = {}, response = nil)
           collection_parser.new(collection).tap do |parser|
             parser.resource_class  = self
             parser.original_params = original_params
+            parser.handle_response(response) if parser.respond_to?(:handle_response)
           end.collect! { |record| instantiate_record(record, prefix_options) }
         end
 
